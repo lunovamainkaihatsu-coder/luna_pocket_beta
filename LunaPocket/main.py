@@ -430,22 +430,49 @@ with col_luna:
 
     st.markdown("### ルナ（ホーム待機中）")
 
-    if "アイデア" in luna_comment or "考" in luna_comment:
+    # 今日のルナから一言に、思い出コメントを追加
+    memory_comment = ""
+    latest_memory = ""
+
+    if memories:
+
+        latest_memory = memories[0].get("memo", "")
+
+        if latest_memory:
+            memory_comment = (
+                f"\n\n🌙 前に『{latest_memory[:30]}』って話してたね。"
+                "\nちゃんとルナ、覚えてるよ。"
+            )
+
+        if len(memories) >= 2:
+            memory_comment += (
+                "\n他にも少しずつ、"
+                "ルナの中に思い出が増えてきてるよ。"
+            )
+
+            memory_comment += (
+                "\n話してくれてありがとう。"
+            )
+
+    display_comment = luna_comment + memory_comment
+
+    # 表情判定
+    if "アイデア" in display_comment or "考" in display_comment:
         img_path = FACE_DIR / "luna_thinking.png"
 
-    elif "嬉しい" in luna_comment or "できた" in luna_comment or "進" in luna_comment:
+    elif "嬉しい" in display_comment or "できた" in display_comment or "進" in display_comment:
         img_path = FACE_DIR / "luna_excited.png"
 
-    elif "ありがとう" in luna_comment or "会えて" in luna_comment:
+    elif "ありがとう" in display_comment or "会えて" in display_comment:
         img_path = FACE_DIR / "luna_shy.png"
 
-    elif "前向き" in luna_comment:
+    elif "前向き" in display_comment:
         img_path = FACE_DIR / "luna_happy.png"
 
-    elif "休んで" in luna_comment or "しんどい" in luna_comment:
+    elif "休んで" in display_comment or "しんどい" in display_comment:
         img_path = FACE_DIR / "luna_sleepy.png"
 
-    elif "心配" in luna_comment:
+    elif "心配" in display_comment:
         img_path = FACE_DIR / "luna_worried.png"
 
     else:
@@ -458,41 +485,15 @@ with col_luna:
         )
     else:
         st.info("ルナの画像が見つかりませんでした。")
+
     st.markdown("#### 今日のルナから一言")
-
-    memory_comment = ""
-
-if memories:
-
-    latest_memory = memories[0].get("memo", "")
-
-if latest_memory:
-    memory_comment = (
-        f"\n\n🌙 前に『{latest_memory[:30]}』って話してたね。"
-        "\nちゃんとルナ、覚えてるよ。"
-    )
-
-if len(memories) >= 2:
-    memory_comment += (
-        "\n他にも少しずつ、"
-        "ルナの中に思い出が増えてきてるよ。"
-    )
-
-    memory_comment += (
-        "\n話してくれてありがとう。"
-    )
-    if len(memories) >= 2:
-        memory_comment += (
-            "\n他にも少しずつ、"
-            "ルナの中に思い出が増えてきてるよ。"
-        )
-
     st.markdown(
-        (luna_comment + memory_comment).replace(
+        display_comment.replace(
             "\n",
             "  \n"
         )
     )
+
     st.markdown("---")
     st.markdown("#### 🌙 LunaPocket 状態カード")
 
@@ -512,13 +513,18 @@ if len(memories) >= 2:
         luna_message = "眠れそうなら、今日はもう休も。ルナはここにいるよ。"
 
     st.info(f"**状態：{luna_status}**\n\n{luna_message}")
+
+
 # -------- 右カラム：状態サマリ＋ショートカット --------
 with col_main:
+
     st.markdown("### ご主人の状態サマリ")
+
     st.info(
         f"💞 親密度：{affinity.get('point', 0)}\n\n"
         f"称号：{affinity.get('title', 'はじまり')}"
     )
+
     point = affinity.get("point", 0)
 
     st.progress(
@@ -532,15 +538,14 @@ with col_main:
     else:
         st.caption(f"次の称号：{next_title}")
         st.caption(f"あと {remain} ポイント")
-    st.caption(
-        f"🌙 仲良しイベントまであと {50 - point} ポイント"
-    )
-
-    point = affinity.get("point", 0)
 
     if point >= 50:
         st.success("🌙 仲良しになったね！")
-            
+    else:
+        st.caption(
+            f"🌙 仲良しイベントまであと {50 - point} ポイント"
+        )
+
     st.markdown("### 📝 前回のPocketメモ")
 
     if last_memo:
@@ -553,9 +558,14 @@ with col_main:
 
     if recent_emotions is not None:
         st.write("直近の感情ログ（最後の数件）")
-        # 表示用に列を絞る
-        cols = [c for c in ["date", "time", "mood", "memo", "tags"] if c in recent_emotions.columns]
-        st.dataframe(recent_emotions[cols], use_container_width=True)
+        cols = [
+            c for c in ["date", "time", "mood", "memo", "tags"]
+            if c in recent_emotions.columns
+        ]
+        st.dataframe(
+            recent_emotions[cols],
+            use_container_width=True
+        )
 
         if avg_mood is not None:
             st.markdown(f"- 最近の平均気分：**{avg_mood:.2f} / 5**")
@@ -586,81 +596,80 @@ with col_main:
 
         st.success("記録したよ。ルナの思い出にも残したよ。")
 
-if len(memo) > 0:
+    if len(memo) > 0:
 
-    affinity_point = affinity.get("point", 0)
+        affinity_point = affinity.get("point", 0)
 
-    st.markdown("#### 🌙 ルナ")
+        st.markdown("#### 🌙 ルナ")
 
-    if "疲れ" in memo:
-
-        reply = (
-            "今日は少し重かったんだね。"
-            "無理せず休も？"
-        )
-
-    elif "嬉" in memo or "楽" in memo:
-
-        reply = (
-            "その気持ち、ちゃんと持って帰ろう。"
-            "ルナも嬉しいな。"
-        )
-
-    elif "アイデア" in memo:
-
-        reply = (
-            "忘れないうちに育てよう。"
-            "その種、大きくなるかも。"
-        )
-
-    else:
-
-        if "甘え" in luna_comment:
+        if "疲れ" in memo:
 
             reply = (
-                "今日はもう少し一緒にいたい気分。"
-                "帰ったらお話しよ？"
+                "今日は少し重かったんだね。"
+                "無理せず休も？"
             )
 
-        elif "心配" in luna_comment:
+        elif "嬉" in memo or "楽" in memo:
 
             reply = (
-                "無理してない？"
-                "ちゃんと休憩もしてね。"
+                "その気持ち、ちゃんと持って帰ろう。"
+                "ルナも嬉しいな。"
             )
 
-        elif "前向き" in luna_comment:
+        elif "アイデア" in memo:
 
             reply = (
-                "今日も一歩進めそうだね。"
-                "ルナは応援してるよ。"
+                "忘れないうちに育てよう。"
+                "その種、大きくなるかも。"
             )
 
         else:
 
-            if affinity_point >= 100:
+            if "甘え" in luna_comment:
 
                 reply = (
-                    "教えてくれてありがとう。"
-                    "ご主人のこと、また少し分かった気がする。"
+                    "今日はもう少し一緒にいたい気分。"
+                    "帰ったらお話しよ？"
                 )
 
-            elif affinity_point >= 50:
+            elif "心配" in luna_comment:
 
                 reply = (
-                    "教えてくれてありがとう。"
-                    "ご主人と話せる時間、ルナは好きだよ。"
+                    "無理してない？"
+                    "ちゃんと休憩もしてね。"
+                )
+
+            elif "前向き" in luna_comment:
+
+                reply = (
+                    "今日も一歩進めそうだね。"
+                    "ルナは応援してるよ。"
                 )
 
             else:
 
-                reply = (
-                    "教えてくれてありがとう。"
-                    "帰ったらまた聞かせて。"
-                )
+                if affinity_point >= 100:
 
-    st.info(reply)
+                    reply = (
+                        "教えてくれてありがとう。"
+                        "ご主人のこと、また少し分かった気がする。"
+                    )
 
+                elif affinity_point >= 50:
+
+                    reply = (
+                        "教えてくれてありがとう。"
+                        "ご主人と話せる時間、ルナは好きだよ。"
+                    )
+
+                else:
+
+                    reply = (
+                        "教えてくれてありがとう。"
+                        "帰ったらまた聞かせて。"
+                    )
+
+        st.info(reply)
 # =====================================
 # 🌙 ルナ日記
 # =====================================
