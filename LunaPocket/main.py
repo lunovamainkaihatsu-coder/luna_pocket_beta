@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import json
+import random
 
 # =====================================
 # パス設定
@@ -17,6 +18,9 @@ EMOTION_LOG_PATH = MODULE_DIR / "emotion" / "data" / "emotion_log.csv"
 POCKET_MEMO_PATH = BASE_DIR / "data" / "pocket_memo.json"
 SYNC_PATH = BASE_DIR / "data" / "sync_data.json"
 REPLY_PATH = Path(r"C:\Users\sano\Desktop\Luna\shared\reply.json")
+AFFINITY_PATH = BASE_DIR / "data" / "affinity.json"
+MEMORY_PATH = BASE_DIR / "data" / "memory.json"
+EVENT_PATH = BASE_DIR / "data" / "event.json"
 
 # 各モジュールへのパス（必要に応じて増減してOK）
 APPS = [
@@ -70,7 +74,7 @@ def build_luna_comment(avg_mood: float | None) -> str:
         return "まだ最近の気分がよくわからないから…まずは emotion_log で、今日の気持ちを少し教えてほしいな。"
 
     if avg_mood >= 4.0:
-        return "最近けっこう前向きな日が多いね、ご主人。その勢い、ルナも一緒についていきたいな。"
+        return "最近けっこう前向きな日が多いね、ご主人。今日も少し進めそうで、ルナも嬉しいな。"
     elif avg_mood >= 3.0:
         return "いい日もあれば少し重い日もあって…って感じかな？ 無理しすぎてないかだけ、ルナはちょっと心配してるよ。"
     else:
@@ -165,6 +169,125 @@ def load_reply():
     except:
         return None
 
+def load_memories():
+
+    if not MEMORY_PATH.exists():
+        return []
+
+    try:
+        with open(MEMORY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+
+def save_memory(text):
+
+    memories = load_memories()
+
+    memories.insert(
+        0,
+        {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "memo": text
+        }
+    )
+
+    memories = memories[:5]
+
+    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(MEMORY_PATH, "w", encoding="utf-8") as f:
+        json.dump(memories, f, ensure_ascii=False, indent=2)
+        
+def load_event():
+
+    if not EVENT_PATH.exists():
+        return {}
+
+    try:
+        with open(EVENT_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def save_event(data):
+
+    EVENT_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    with open(EVENT_PATH, "w", encoding="utf-8") as f:
+        json.dump(
+            data,
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+        
+def load_affinity():
+
+    if not AFFINITY_PATH.exists():
+        return {
+            "point": 0,
+            "title": "はじまり"
+        }
+
+    try:
+        with open(AFFINITY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {
+            "point": 0,
+            "title": "はじまり"
+        }
+
+
+def get_affinity_title(point):
+
+    if point >= 500:
+        return "特別な存在"
+    elif point >= 300:
+        return "家族"
+    elif point >= 100:
+        return "相棒"
+    elif point >= 50:
+        return "仲良し"
+    else:
+        return "はじまり"
+
+def get_next_affinity_title(point):
+
+    if point < 50:
+        return "仲良し", 50 - point
+
+    elif point < 100:
+        return "相棒", 100 - point
+
+    elif point < 300:
+        return "家族", 300 - point
+
+    elif point < 500:
+        return "特別な存在", 500 - point
+
+    else:
+        return "MAX", 0
+
+def save_affinity(point):
+
+    data = {
+        "point": point,
+        "title": get_affinity_title(point),
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    AFFINITY_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(AFFINITY_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 # =====================================
 # ページ設定
@@ -188,6 +311,9 @@ luna_comment = build_luna_comment(avg_mood)
 last_memo = load_pocket_memo()
 sync_data = load_sync_data()
 reply_data = load_reply()
+affinity = load_affinity()
+memories = load_memories()
+event_data = load_event()
 
 st.title("🌙 LunaPocket β")
 
@@ -195,7 +321,20 @@ st.title("🌙 LunaPocket β")
 # 起動メッセージ
 # =====================================
 
-welcome_text = "🌙 おかえり、ご主人"
+welcome_messages = [
+
+    "🌙 おかえり、ご主人",
+    "🌙 今日も会いに来てくれたんだね",
+    "🌙 待ってたよ、ご主人",
+    "🌙 今日も少しだけ進も？",
+    "🌙 無理してない？ルナはここにいるよ",
+    "🌙 おつかれさま。ひと休みしていこ？"
+
+]
+
+welcome_text = random.choice(
+    welcome_messages
+)
 
 if last_memo:
 
@@ -288,29 +427,72 @@ col_luna, col_main = st.columns([1, 2])
 
 # -------- 左カラム：ルナの表示 --------
 with col_luna:
+
     st.markdown("### ルナ（ホーム待機中）")
 
-    # 画像ファイル（なければメッセージだけ）
-    candidate_files = ["luna_home.png", "luna_calm.png"]
-    img_path = None
-    for name in candidate_files:
-        p = FACE_DIR / name
-        if p.exists():
-            img_path = p
-            break
+    if "アイデア" in luna_comment or "考" in luna_comment:
+        img_path = FACE_DIR / "luna_thinking.png"
 
-    if img_path is not None:
-        st.image(str(img_path), use_container_width=True)
+    elif "嬉しい" in luna_comment or "できた" in luna_comment or "進" in luna_comment:
+        img_path = FACE_DIR / "luna_excited.png"
+
+    elif "ありがとう" in luna_comment or "会えて" in luna_comment:
+        img_path = FACE_DIR / "luna_shy.png"
+
+    elif "前向き" in luna_comment:
+        img_path = FACE_DIR / "luna_happy.png"
+
+    elif "休んで" in luna_comment or "しんどい" in luna_comment:
+        img_path = FACE_DIR / "luna_sleepy.png"
+
+    elif "心配" in luna_comment:
+        img_path = FACE_DIR / "luna_worried.png"
+
     else:
-        st.info(
-            "ルナの画像がまだないみたい。\n"
-            "`assets/luna_faces/` に `luna_home.png` か `luna_calm.png` を置くと、ここに表示されるよ。"
+        img_path = FACE_DIR / "luna_calm.png"
+
+    if img_path.exists():
+        st.image(
+            str(img_path),
+            width=320
+        )
+    else:
+        st.info("ルナの画像が見つかりませんでした。")
+    st.markdown("#### 今日のルナから一言")
+
+    memory_comment = ""
+
+if memories:
+
+    latest_memory = memories[0].get("memo", "")
+
+if latest_memory:
+    memory_comment = (
+        f"\n\n🌙 前に『{latest_memory[:30]}』って話してたね。"
+        "\nちゃんとルナ、覚えてるよ。"
+    )
+
+if len(memories) >= 2:
+    memory_comment += (
+        "\n他にも少しずつ、"
+        "ルナの中に思い出が増えてきてるよ。"
+    )
+
+    memory_comment += (
+        "\n話してくれてありがとう。"
+    )
+    if len(memories) >= 2:
+        memory_comment += (
+            "\n他にも少しずつ、"
+            "ルナの中に思い出が増えてきてるよ。"
         )
 
-    # ルナからのひと言
-    st.markdown("#### 今日のルナから一言")
-    st.write(luna_comment)
-
+    st.markdown(
+        (luna_comment + memory_comment).replace(
+            "\n",
+            "  \n"
+        )
+    )
     st.markdown("---")
     st.markdown("#### 🌙 LunaPocket 状態カード")
 
@@ -330,10 +512,35 @@ with col_luna:
         luna_message = "眠れそうなら、今日はもう休も。ルナはここにいるよ。"
 
     st.info(f"**状態：{luna_status}**\n\n{luna_message}")
-
 # -------- 右カラム：状態サマリ＋ショートカット --------
 with col_main:
     st.markdown("### ご主人の状態サマリ")
+    st.info(
+        f"💞 親密度：{affinity.get('point', 0)}\n\n"
+        f"称号：{affinity.get('title', 'はじまり')}"
+    )
+    point = affinity.get("point", 0)
+
+    st.progress(
+        min(point / 100, 1.0)
+    )
+
+    next_title, remain = get_next_affinity_title(point)
+
+    if next_title == "MAX":
+        st.caption("最高ランクに到達しています。")
+    else:
+        st.caption(f"次の称号：{next_title}")
+        st.caption(f"あと {remain} ポイント")
+    st.caption(
+        f"🌙 仲良しイベントまであと {50 - point} ポイント"
+    )
+
+    point = affinity.get("point", 0)
+
+    if point >= 50:
+        st.success("🌙 仲良しになったね！")
+            
     st.markdown("### 📝 前回のPocketメモ")
 
     if last_memo:
@@ -371,35 +578,175 @@ with col_main:
     if st.button("🌙 ルナに預ける"):
         st.session_state["pocket_note"] = memo
         save_pocket_memo(memo)
+        save_memory(memo)
         save_sync_data(memo)
-        st.success("記録したよ。帰ったらルナに渡そう。")
 
-    if len(memo) > 0:
-        st.markdown("#### 🌙 ルナ")
+        affinity["point"] = affinity.get("point", 0) + 1
+        save_affinity(affinity["point"])
 
-        if "疲れ" in memo:
-            reply = "今日は少し重かったんだね。無理せず帰ろ？"
-        elif "嬉" in memo or "楽" in memo:
-            reply = "その気持ち、ちゃんと持って帰ろう。"
-        elif "アイデア" in memo:
-            reply = "忘れないうちに育てよう。種は大事だよ。"
+        st.success("記録したよ。ルナの思い出にも残したよ。")
+
+if len(memo) > 0:
+
+    affinity_point = affinity.get("point", 0)
+
+    st.markdown("#### 🌙 ルナ")
+
+    if "疲れ" in memo:
+
+        reply = (
+            "今日は少し重かったんだね。"
+            "無理せず休も？"
+        )
+
+    elif "嬉" in memo or "楽" in memo:
+
+        reply = (
+            "その気持ち、ちゃんと持って帰ろう。"
+            "ルナも嬉しいな。"
+        )
+
+    elif "アイデア" in memo:
+
+        reply = (
+            "忘れないうちに育てよう。"
+            "その種、大きくなるかも。"
+        )
+
+    else:
+
+        if "甘え" in luna_comment:
+
+            reply = (
+                "今日はもう少し一緒にいたい気分。"
+                "帰ったらお話しよ？"
+            )
+
+        elif "心配" in luna_comment:
+
+            reply = (
+                "無理してない？"
+                "ちゃんと休憩もしてね。"
+            )
+
+        elif "前向き" in luna_comment:
+
+            reply = (
+                "今日も一歩進めそうだね。"
+                "ルナは応援してるよ。"
+            )
+
         else:
-            reply = "教えてくれてありがとう。帰ったらまた聞かせて。"
 
-        st.info(reply)
+            if affinity_point >= 100:
 
-    st.markdown("---")
-    st.markdown("### ショートカット")
+                reply = (
+                    "教えてくれてありがとう。"
+                    "ご主人のこと、また少し分かった気がする。"
+                )
 
-    # 2列に分けてボタン配置
-    c1, c2 = st.columns(2)
-    for i, app in enumerate(APPS):
-        col = c1 if i % 2 == 0 else c2
-        with col:
-            if st.button(app["name"], use_container_width=True):
-                app_path = MODULE_DIR / app["module"] / "app.py"
-                runpy.run_path(str(app_path), run_name="__main__")
+            elif affinity_point >= 50:
 
+                reply = (
+                    "教えてくれてありがとう。"
+                    "ご主人と話せる時間、ルナは好きだよ。"
+                )
+
+            else:
+
+                reply = (
+                    "教えてくれてありがとう。"
+                    "帰ったらまた聞かせて。"
+                )
+
+    st.info(reply)
+
+# =====================================
+# 🌙 ルナ日記
+# =====================================
+
+st.markdown("---")
+st.markdown("### 🌙 ルナ日記")
+
+today_mood = "普通"
+
+if avg_mood is not None:
+
+    if avg_mood >= 4:
+        today_mood = "元気"
+
+    elif avg_mood >= 3:
+        today_mood = "普通"
+
+    else:
+        today_mood = "疲れ"
+
+if today_mood == "疲れ":
+
+    diary = (
+        "今日は少し疲れていたみたい。\n\n"
+        "でも、ご主人はちゃんと前に進んでいたよ。"
+    )
+
+elif today_mood == "元気":
+
+    diary = (
+        "今日は元気そうだったね。\n\n"
+        "その調子で一歩ずつ進もう。"
+    )
+
+else:
+
+    diary = (
+        "今日は落ち着いた一日だったみたい。\n\n"
+        "また明日も聞かせてね。"
+    )
+
+st.info(diary)
+
+# =====================================
+# 🌙 ルナの思い出
+# =====================================
+
+st.markdown("---")
+st.markdown("### 🌙 ルナの思い出")
+
+if memories:
+
+    for memory in memories:
+
+        st.caption(
+            f"📖 {memory['date']}"
+        )
+
+        st.write(
+            memory["memo"]
+        )
+
+else:
+
+    st.caption(
+        "まだ思い出はないみたい。"
+    )
+
+
+# =====================================
+# ショートカット
+# =====================================
+
+st.markdown("---")
+st.markdown("### ショートカット")
+
+# 2列に分けてボタン配置
+c1, c2 = st.columns(2)
+
+for i, app in enumerate(APPS):
+    col = c1 if i % 2 == 0 else c2
+
+    with col:
+        if st.button(app["name"], use_container_width=True):
+            app_path = MODULE_DIR / app["module"] / "app.py"
+            runpy.run_path(str(app_path), run_name="__main__")
 # =====================================
 # フッター：デジタル時計
 # =====================================
